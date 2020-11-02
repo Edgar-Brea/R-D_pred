@@ -2,7 +2,7 @@
 title: "What factors explain ASX companies' decision to undertake R&D activities? A machine learning approach"
 author: "Edgar Brea"
 date: "31/10/2020"
-output: html_document
+output: github_document
 ---
 <style type="text/css">
 .main-container {
