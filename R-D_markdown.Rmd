@@ -3,9 +3,11 @@ title: "What factors explain ASX companies' decision to undertake R&D activities
 author: "Edgar Brea"
 date: "20/10/2020"
 #output: html_document
+
+#Knit to html into the file 'docs/index.html':
 knit: (function(input_file, encoding) {
-  out_dir <- 'R markdown';
-  rmarkdown::render(input_file, encoding = encoding, output_file = file.path(dirname(input_file), out_dir, 'index.html')) #knit to html into the file 'R markdown/index.html'
+  out_dir <- 'docs';
+  rmarkdown::render(input_file, encoding = encoding, output_file = file.path(dirname(input_file), out_dir, 'index.html'))
   })
 ---
 <style type="text/css">
