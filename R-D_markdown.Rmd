@@ -1,8 +1,8 @@
 ---
 title: "What factors explain ASX companies' decision to undertake R&D activities? A machine learning approach"
 author: "Edgar Brea"
-date: "31/10/2020"
-output: github_document
+date: "20/10/2020"
+output: html_document
 ---
 <style type="text/css">
 .main-container {
@@ -41,17 +41,17 @@ cols <- c("trading_status", "company_status", "country_of_incorporation", "headq
 data[cols] <- lapply(data[cols], factor)
 data <- data[,c(1:36,38:50,37)] #reorder data
 ```
-## 1. Why study R&D activities?
+## 1. Why study R&D activity?
 
-Here, I investigate what drives a company to spend and undertake research and development (R&D) activities. R&D expenditure is a recurrent topic in discussions about innovation in Australia, given the nation's moderate levels of R&D intensity [compared to similar countries](https://data.oecd.org/rd/gross-domestic-spending-on-r-d.htm). There are two main sides underlying these discussions: one side argues for [boosting R&D activities](https://www.afr.com/companies/business-rd-spend-must-increase-to-cut-technology-gap-20180812-h13v70) to stimulate the generation of novel products/services; the other argues that R&D activities only covers a portion of the entire innovation activities in an economy, and that we are better off [boosting non-R&D activities](https://www.innovationaus.com/does-innovation-need-a-non-rd-focus/) to stimulate novel offerings.
+In this project, I investigate what drives a company to spend and undertake research and development (R&D) activities. R&D expenditure is a recurrent topic in discussions about innovation in Australia, given the nation's moderate levels of R&D intensity [compared to similar countries](https://data.oecd.org/rd/gross-domestic-spending-on-r-d.htm). There are two main sides underlying these discussions: one side argues for [boosting R&D activities](https://www.afr.com/companies/business-rd-spend-must-increase-to-cut-technology-gap-20180812-h13v70) to stimulate the generation of novel products/services; the other argues that R&D activities only covers a portion of the entire innovation activities in an economy, and that we are better off [boosting non-R&D activities](https://www.innovationaus.com/does-innovation-need-a-non-rd-focus/) to stimulate novel offerings.
 
 The solution to this tension is likely to lie between the two. For some companies, R&D is a vital component of the innovation process. For others, R&D activities are not the most optimal way to innovate. However, to understand this, we must have a more definitive understanding of who is doing R&D in Australia and why.
 
-To bridge this knowledge gap, I develop multiple classification models with a battery of company variables from ASX-listed companies to predict the extent to which a company undertakes R&D activities. The accuracy of each model is assessed, as well as the list of most important features for each model, in order to identify the key factors driving R&D undertaking.
+To help solve these questions, I have developed a set of classification models with a number of company variables from ASX-listed companies to predict the extent to which a company undertakes R&D activities. The accuracy of each model is assessed, as well as the list of most important features for each model, in order to identify the key factors driving R&D undertaking.
 
 ## 2. Data and variables
 
-The data was collected from three different datasets: S&P's Capital IQ, Morningstar's DatAnalyis, and IP Australia's IPGOD. To maximise the coverage of company data, R&D expenditure values, as well as a range of organisational and financial indicators, were sourced from both Capital IQ and DatAnalysis and aggregated into a single dataset. Patents, trademarks and design data were then integrated into the dataset using a combination of fuzzy name matching and company ABN. After integrating the three data sources, my final sample was **`r nrow(data)` ** companies that are either currently listed or were listed at some point in the past.
+The data was collected from three different datasets: S&P's Capital IQ, Morningstar's DatAnalyis, and IP Australia's IPGOD. To maximise the coverage of company data, R&D expenditure values, as well as a range of organisational and financial indicators, were sourced from both Capital IQ and DatAnalysis and aggregated into a single dataset. Patents, trademarks and design data were then integrated into the dataset using a combination of fuzzy name matching and company ABN. After integrating the three data sources, my final sample was **`r nrow(data)`** companies that are either currently listed or were listed at some point in the past.
 
 The following table lists the variables (predictors) developed and used for the classification models. It also includes a dichotomous variable indicating whether or not the company reported R&D expenditures in any of the last three years (the outcome variable). These variables were selected after a review of relevant academic literature on corporate R&D and strategic management.
 
@@ -110,19 +110,19 @@ gridExtra::grid.arrange(ggplot(data, aes(x = market_capitalisation, color = has_
 
 grid.rect(gp = gpar(lwd = 2, col = "grey50", fill = NA))
 ```
-Regarding company characteristics, we can see that companies incorporated and/or headquartered outside Australia are slightly more likely to undertake R&D. There is also some differences across states in which companies are headquartered. The biggest differences can be seen across GICS (Global Industry Classification Standard) sectors and industries. Also, companies with larger number of geographic segments are slightly more likely to undertake R&D. So, **the industry of operation and internationalisation emerge as potential key predictors**, confirming what the theory says about R&D expenditure.
+We can see that companies incorporated and/or headquartered outside Australia are slightly more likely to undertake R&D. There is also some differences across states in which companies are headquartered. The largest differences are seen across GICS (Global Industry Classification Standard) sectors and industries. Also, companies with larger number of geographic segments are slightly more likely to undertake R&D. So, **the industry of operation and internationalisation emerge as potential key predictors**, confirming what the theory says about R&D expenditure.
 
-Regarding stakeholder variables, companies with more customers and business relationships are more likely to undertake R&D. In principle, this confirms theory, which suggest that **greater relationships with customers and suppliers are key drivers of R&D activities**. Companies with less investments in other companies and more sponsors (i.e. companies investing in them) are more likely to undertake R&D, suggesting that **R&D-intensive companies are more likely to be supported by - rather than provide support to - external organisations**. Also, a **greater percentage of external directors seems to have a relationship with R&D undertaking**, which aligns with the insights from company characteristic predictors.
+Regarding stakeholder variables, companies with more customers and business relationships are more likely to undertake R&D. In principle, this confirms theory, which suggest that **deeper relationships with customers and suppliers are key drivers of R&D activities**. Companies with less investments in other companies and more sponsors (i.e. companies investing in them) are more likely to undertake R&D, suggesting that **R&D-intensive companies are more likely to be supported by - rather than provide support to - external organisations**. Also, a **greater percentage of external directors seems to have a relationship with R&D undertaking**.
 
-As for company performance, **companies with R&D show a greater market capitalisation**, which confirms both theoretical and practical knowledge on the topic. Also, firms with R&D are more likely to have a moderate revenue and intangible assets, thus, **there is a sweet spot in terms of revenues and intangibles that favour R&D undertaking**. Lastly, **companies with more design, patents an trademarks seem to be more likely to undertake R&D**.
+As for company performance, **companies with R&D show a greater market capitalisation**, which confirms both theoretical and practical knowledge on the topic. Also, firms with R&D are more likely to have a moderate revenue and intangible assets, thus, there seems to be a sweet spot in terms of **revenues and intangibles that favour R&D undertaking**. Lastly, **companies with more design, patents an trademarks seem to be more likely to undertake R&D**.
 
-Let's see if these insights hold when building the predictive models.
+Let's see how these insights contrast with the results from the predictive models.
 
 ## 4. Building the classifiers
 
-Three classification models were developed in order to predict whether or not a company undertakes R&D. Random forest, logistic regression, and naive Bayes methods were used to build the three classifiers. These three are among the most widely-used machine learning methods within the data science community.
+Three classification models were developed in order to predict whether or not a company undertakes R&D. Random forest, logistic regression, and naive Bayes methods were used to build the classifiers. These methods are among the most widely-used machine learning methods within the data science community.
 
-Firstly, I build the training set to train the classifier, and the testing set to evaluate its performance:
+First, I build the training set to train the classifiers and the testing set to evaluate their performance:
 
 ```{r prediction}
 set.seed(1234) #for reproducibility
@@ -136,7 +136,7 @@ train_data <- data_ready[train_indices, ] #build training dataset
 test_data <- data_ready[-train_indices, ] #build testing dataset
 ```
 
-Then, I train and test each model, and assess how important each predictor is for the model:
+Then, I train and test each model, and assess the importance of each predictor for the classification of companies in terms of R&D undertaking:
 
 ### Random forest-based classifier:
 ```{r random_forest}
@@ -269,23 +269,23 @@ legend(0.4, 0.3, c(paste0("Random forest", " | AUC: ", auc_rf1),
 box(col = "grey60", lwd = 1)
 ```
 
-## 6. Discussion:
+## 6. What do these results mean?
 
 From the curve, it becomes clear the superiority of both the random forest and logistic regression classifiers compared to the naive Bayes classifier. **The random forest classifier has a greater AUC**, and it can be seen that it **performs better than the logistic regression classifier** in the middle section of the curves (where the false positive rates are between 0.1 and 0.6).
 
-Considering the superiority of the random forest classifier, we go back to its most important predictors in order to establish a definitive answer to our research question. Unarguably, **the industry in which the company operates is a dominant feature driving R&D undertaking**. This insight suggest that Australia's R&D intensity is a reflection of the industry structure underpinning the economy. In fact, if we go back to the exploratory analysis, we see that Materials, Energy and Diversified Financials industries (the three most populous industries in Australia) show comparatively low counts of companies with R&D.
+Considering the greater performance of the random forest classifier, we go back to its most important predictors in order to establish a definitive answer to our initial question. Unarguably, **the industry in which the company operates is a dominant feature driving R&D undertaking**. Specifically, Information Technology and Health Care sectors hold the largest share of companies undertaking R&D. The result suggests that Australia's R&D intensity is a reflection of the industry structure underpinning the economy. Going back to the exploratory analysis, we see that Materials, Energy and Diversified Financials industries (the three most populous industries in Australia) show comparatively low counts of companies with R&D.
 
-When we consider the top 10 predictors (excluding GICS industry group and sector), interesting insights emerge too. **The amount of intangible assets, total revenue and total assets all play a role in predicting R&D undertaking**. The curves from the exploratory analysis indicate a group of companies heavy in assets (inc. intangibles) and revenues that do not undertake R&D. This can be interpreted in three ways: they outsource innovation activities to other organisations, undertake other forms of innovation, or do not innovate. More research covering non-R&D innovation activities might be needed to better understand this situation.
+When we consider the top 10 predictors (excluding GICS industry group and sector), interesting insights emerge too. **The amount of intangible assets, total revenue and total assets all play a role in predicting R&D undertaking**. The exploratory analysis suggest a group of companies heavy in assets and revenues that do not undertake R&D. This can be interpreted in three ways: they outsource innovation activities to other organisations, undertake other forms of innovation, or do not innovate at all. More research covering non-R&D innovation activities is needed to better understand this situation.
 
-Next, we have market capitalisation and number of patents. **Companies with more patents and greater market capitalisation are more likely to undertake R&D**. This aligns with the majority of academic research arguing that R&D outputs are typically protected through patents, and that the market values R&D intensity (as well as patents). However, this might be due the lack of reliable metrics for non-R&D innovation, which forces the market to rely on R&D and patents.
+Next, we have market capitalisation and number of patents. **Companies with more patents and greater market capitalisation are more likely to undertake R&D**. This aligns with the majority of academic research arguing that R&D outputs are typically protected through patents, and that the market values R&D intensity (as well as patents). However, this might be due the lack of consistent metrics for non-R&D innovation, which forces the market to rely on R&D and patents.
 
-The remaining three features in the top 10 predictors are ** headquarter state, number of employees and year founded**. The difference in the headquarter state may be attributable to the uneven location of businesses depending on the industry (i.e. mining and resource industries are more likely to be located in some states than others). With number of employees, we can see a large number of companies with 0-1 employees not undertaking R&D. These are likely to be junior mining companies, which have a greater focus on exploration and new discoveries than on R&D. Lastly, there is a group of relatively young companies that are less likely to undertake R&D, suggesting that these are companies that are still focusing on developing product/service lines and business processes, before committing to further R&D expenditures.
+The remaining three features in the top 10 predictors are **headquarter state, number of employees and year founded**. The difference in the headquarter state may be attributable to the uneven location of businesses depending on the industry (i.e. mining and resource industries are more likely to be located in some states than others). With number of employees, we can see a large number of companies with 0-1 employees not undertaking R&D. These are likely to be junior mining companies, which have a greater focus on exploration and new discoveries than on R&D. Lastly, there is a group of relatively young companies that are less likely to undertake R&D, suggesting that these are companies that are still focusing on developing product/service lines and business processes, before committing to further R&D expenditures.
 
-There are also important insights regarding the features in the bottom of the importance ranking. The company and trading status of the companies in my sample, as well as features such as number of products, segments, competitors and number of alliances are less likely to play a role in R&D undertaking.
+It is worth mentioning that the **business relationship factors** (e.g. no. strategic alliances, business relationships), and **internationalisation factors** (e.g. no. geographic segments, country of incorporation) **play a less decisive role in predicting R&D undertaking** than what the exploratory analysis suggested. An interpretation is that, for companies relying on deep relationships with customers, suppliers and partners, as well as on internationalisation and export as a business strategy, non-R&D activities might be just as important as R&D activities for innovation practices.
 
 
 ## 7. Conclusions:
 
-This study shows that **whether or not a company undertakes R&D can be predicted using a battery of company structural and performance features**. In regards to the factors driving R&D undertaking in Australia, a random forest-based classification model indicate that **the industry in which the company operates is the most dominant factor influencing R&D**. The amount of **assets, revenues, market capitalisation and number of patents play a secondary, although a noticeable, role as well**.
+This study shows that **whether or not a company undertakes R&D can be predicted with sufficient accuracy using a battery of company structural and performance features**. In regards to the factors driving R&D undertaking in Australia, a random forest-based classification model indicates that **the industry in which the company operates is the most dominant factor influencing R&D**. The amount of **assets, revenues, market capitalisation and number of patents play a secondary, although a noticeable, role as well**.
 
 
