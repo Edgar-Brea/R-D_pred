@@ -1,0 +1,291 @@
+---
+title: "What factors explain ASX companies' decision to undertake R&D activities? A machine learning approach"
+author: "Edgar Brea"
+date: "31/10/2020"
+output: html_document
+---
+<style type="text/css">
+.main-container {
+  max-width: 85%;
+  margin-left: auto;
+  margin-right: auto;
+}
+</style>
+
+```{r setup, include=FALSE}
+library(knitr)
+library(readr)
+library(psych)
+library(ggplot2)
+library(gridExtra)
+library(grid)
+library(dplyr)
+library(randomForest)
+library(MASS)
+library(caret)
+library(ROCR)
+library(RColorBrewer)
+library(e1071)
+library(naivebayes)
+library(rminer)
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE)
+```
+
+```{r import, include=FALSE}
+options(width = 200)
+data <- read_csv("data_step2.csv")
+data$ABN <- as.character(data$ABN)
+#coerce to factors:
+cols <- c("trading_status", "company_status", "country_of_incorporation", "headquarters_city", "headquarters_state", "headquarters_country",
+          "primary_industry", "GICS_sector", "GICS_industry_group", "GICS_industry", "has_RD_exp")
+data[cols] <- lapply(data[cols], factor)
+data <- data[,c(1:36,38:50,37)] #reorder data
+```
+## 1. Why study R&D activities?
+
+Here, I investigate what drives a company to spend and undertake research and development (R&D) activities. R&D expenditure is a recurrent topic in discussions about innovation in Australia, given the nation's moderate levels of R&D intensity [compared to similar countries](https://data.oecd.org/rd/gross-domestic-spending-on-r-d.htm). There are two main sides underlying these discussions: one side argues for [boosting R&D activities](https://www.afr.com/companies/business-rd-spend-must-increase-to-cut-technology-gap-20180812-h13v70) to stimulate the generation of novel products/services; the other argues that R&D activities only covers a portion of the entire innovation activities in an economy, and that we are better off [boosting non-R&D activities](https://www.innovationaus.com/does-innovation-need-a-non-rd-focus/) to stimulate novel offerings.
+
+The solution to this tension is likely to lie between the two. For some companies, R&D is a vital component of the innovation process. For others, R&D activities are not the most optimal way to innovate. However, to understand this, we must have a more definitive understanding of who is doing R&D in Australia and why.
+
+To bridge this knowledge gap, I develop multiple classification models with a battery of company variables from ASX-listed companies to predict the extent to which a company undertakes R&D activities. The accuracy of each model is assessed, as well as the list of most important features for each model, in order to identify the key factors driving R&D undertaking.
+
+## 2. Data and variables
+
+The data was collected from three different datasets: S&P's Capital IQ, Morningstar's DatAnalyis, and IP Australia's IPGOD. To maximise the coverage of company data, R&D expenditure values, as well as a range of organisational and financial indicators, were sourced from both Capital IQ and DatAnalysis and aggregated into a single dataset. Patents, trademarks and design data were then integrated into the dataset using a combination of fuzzy name matching and company ABN. After integrating the three data sources, my final sample was **`r nrow(data)` ** companies that are either currently listed or were listed at some point in the past.
+
+The following table lists the variables (predictors) developed and used for the classification models. It also includes a dichotomous variable indicating whether or not the company reported R&D expenditures in any of the last three years (the outcome variable). These variables were selected after a review of relevant academic literature on corporate R&D and strategic management.
+
+```{r desc_stats}
+kable(describe(data))
+```
+
+
+## 3. Exploratory analysis
+
+The following figures show the bivariate relationships between the predictors and R&D undertaking, organised in three groups:
+
+* Company characteristics (e.g. industry, age, size, geographic segments)
+* Company stakeholders and relationships (e.g. internal such as employees, percentage of external directors; and external such as customers and suppliers)
+* Company performance and IP data (e.g. revenue, market capitalisation, patents)
+
+```{r exploratory_analysis, echo=FALSE, fig.width=20, fig.height=10}
+gridExtra::grid.arrange(ggplot(data, aes(x = trading_status, fill = has_RD_exp)) + geom_bar(position = "fill") + coord_flip(),
+                        ggplot(data, aes(x = company_status, fill = has_RD_exp)) + geom_bar(position = "fill") + coord_flip(),
+                        ggplot(data, aes(x = country_of_incorporation, fill = has_RD_exp)) + geom_bar(position = "fill") + coord_flip(),
+                        ggplot(data, aes(x = headquarters_country, fill = has_RD_exp)) + geom_bar(position = "fill") + coord_flip(),
+                        ggplot(data, aes(x = headquarters_state, fill = has_RD_exp)) + geom_bar(position = "fill") + coord_flip(),
+                        ggplot(data, aes(x = GICS_sector, fill = has_RD_exp)) + geom_bar(position = "fill") + coord_flip(),
+                        ggplot(data, aes(x = GICS_industry_group, fill = has_RD_exp)) + geom_bar(position = "fill") + coord_flip() + theme(axis.text.y = element_text(size = 6)),
+                        ggplot(data, aes(x = year_founded, color = has_RD_exp, fill = has_RD_exp)) + geom_density(alpha = .15),
+                        ggplot(data, aes(x = ASX_listing_year, color = has_RD_exp, fill = has_RD_exp)) + geom_density(alpha = .15),
+                        ggplot(data, aes(x = no_industries_associated, color = has_RD_exp, fill = has_RD_exp)) + geom_density(alpha = .15) + scale_x_continuous(trans = 'log10'),
+                        ggplot(data, aes(x = no_products, color = has_RD_exp, fill = has_RD_exp)) + geom_density(alpha = .15) + scale_x_continuous(trans = 'log10'),
+                        ggplot(data, aes(x = no_geographic_segments, color = has_RD_exp, fill = has_RD_exp)) + geom_density(alpha = .15) + scale_x_continuous(trans = 'log10'),
+                        ggplot(data, aes(x = no_business_segments, color = has_RD_exp, fill = has_RD_exp)) + geom_density(alpha = .15) + scale_x_continuous(trans = 'log10'), 
+                        ncol = 3, top = textGrob("Company characteristics and R&D undertaking", gp = gpar(fontsize = 13, fontface= 2)))
+
+grid.rect(gp = gpar(lwd = 2, col = "grey50", fill = NA))
+
+gridExtra::grid.arrange(ggplot(data, aes(x = pct_external_directors, color = has_RD_exp, fill = has_RD_exp)) + geom_density(alpha = .15) + scale_x_continuous(trans = 'log10'),
+                        ggplot(data, aes(x = no_employees, color = has_RD_exp, fill = has_RD_exp)) + geom_density(alpha = .15) + scale_x_continuous(trans = 'log10'),
+                        ggplot(data, aes(x = no_corporate_investments, color = has_RD_exp, fill = has_RD_exp)) + geom_density(alpha = .15) + scale_x_continuous(trans = 'log10'),
+                        ggplot(data, aes(x = no_sponsors, color = has_RD_exp, fill = has_RD_exp)) + geom_density(alpha = .15) + scale_x_continuous(trans = 'log10'),
+                        ggplot(data, aes(x = no_business_relationships, color = has_RD_exp, fill = has_RD_exp)) + geom_density(alpha = .15) + scale_x_continuous(trans = 'log10'),
+                        ggplot(data, aes(x = no_competitors, color = has_RD_exp, fill = has_RD_exp)) + geom_density(alpha = .15) + scale_x_continuous(trans = 'log10'),
+                        ggplot(data, aes(x = no_customers, color = has_RD_exp, fill = has_RD_exp)) + geom_density(alpha = .15) + scale_x_continuous(trans = 'log10'),
+                        ggplot(data, aes(x = no_suppliers, color = has_RD_exp, fill = has_RD_exp)) + geom_density(alpha = .15) + scale_x_continuous(trans = 'log10'),
+                        ggplot(data, aes(x = no_strategic_alliances, color = has_RD_exp, fill = has_RD_exp)) + geom_density(alpha = .15) + scale_x_continuous(trans = 'log10'),
+                        ncol = 3, top = textGrob("Company stakeholders, relationships and R&D undertaking", gp = gpar(fontsize = 13, fontface= 2)))
+
+grid.rect(gp = gpar(lwd = 2, col = "grey50", fill = NA))
+
+gridExtra::grid.arrange(ggplot(data, aes(x = market_capitalisation, color = has_RD_exp, fill = has_RD_exp)) + geom_density(alpha = .15) + scale_x_continuous(trans = 'log10'),
+                        ggplot(data, aes(x = total_revenue, color = has_RD_exp, fill = has_RD_exp)) + geom_density(alpha = .15) + scale_x_continuous(trans = 'log10'),
+                        ggplot(data, aes(x = total_assets, color = has_RD_exp, fill = has_RD_exp)) + geom_density(alpha = .15) + scale_x_continuous(trans = 'log10'),
+                        ggplot(data, aes(x = intangible_assets, color = has_RD_exp, fill = has_RD_exp)) + geom_density(alpha = .15) + scale_x_continuous(trans = 'log10'),
+                        ggplot(data, aes(x = no_designs, color = has_RD_exp, fill = has_RD_exp)) + geom_density(alpha = .15) + scale_x_continuous(trans = 'log10'),
+                        ggplot(data, aes(x = no_patents, color = has_RD_exp, fill = has_RD_exp)) + geom_density(alpha = .15) + scale_x_continuous(trans = 'log10'),
+                        ggplot(data, aes(x = no_trademarks, color = has_RD_exp, fill = has_RD_exp)) + geom_density(alpha = .15) + scale_x_continuous(trans = 'log10'), 
+                        ncol = 3, top = textGrob("Company performance (including IP) and R&D undertaking", gp = gpar(fontsize = 13, fontface= 2)))
+
+grid.rect(gp = gpar(lwd = 2, col = "grey50", fill = NA))
+```
+Regarding company characteristics, we can see that companies incorporated and/or headquartered outside Australia are slightly more likely to undertake R&D. There is also some differences across states in which companies are headquartered. The biggest differences can be seen across GICS (Global Industry Classification Standard) sectors and industries. Also, companies with larger number of geographic segments are slightly more likely to undertake R&D. So, **the industry of operation and internationalisation emerge as potential key predictors**, confirming what the theory says about R&D expenditure.
+
+Regarding stakeholder variables, companies with more customers and business relationships are more likely to undertake R&D. In principle, this confirms theory, which suggest that **greater relationships with customers and suppliers are key drivers of R&D activities**. Companies with less investments in other companies and more sponsors (i.e. companies investing in them) are more likely to undertake R&D, suggesting that **R&D-intensive companies are more likely to be supported by - rather than provide support to - external organisations**. Also, a **greater percentage of external directors seems to have a relationship with R&D undertaking**, which aligns with the insights from company characteristic predictors.
+
+As for company performance, **companies with R&D show a greater market capitalisation**, which confirms both theoretical and practical knowledge on the topic. Also, firms with R&D are more likely to have a moderate revenue and intangible assets, thus, **there is a sweet spot in terms of revenues and intangibles that favour R&D undertaking**. Lastly, **companies with more design, patents an trademarks seem to be more likely to undertake R&D**.
+
+Let's see if these insights hold when building the predictive models.
+
+## 4. Building the classifiers
+
+Three classification models were developed in order to predict whether or not a company undertakes R&D. Random forest, logistic regression, and naive Bayes methods were used to build the three classifiers. These three are among the most widely-used machine learning methods within the data science community.
+
+Firstly, I build the training set to train the classifier, and the testing set to evaluate its performance:
+
+```{r prediction}
+set.seed(1234) #for reproducibility
+
+#Build training and testing sets:
+data_ready <- data[,-c(1:4,8,12,15)] #remove firm metadata and categorical variables with extreme number of categories
+
+sample_size <- floor(0.75 * nrow(data_ready)) #size of training dataset = 75% of data
+train_indices <- sample(nrow(data_ready), size = sample_size) #obtain list of indices for training dataset
+train_data <- data_ready[train_indices, ] #build training dataset
+test_data <- data_ready[-train_indices, ] #build testing dataset
+```
+
+Then, I train and test each model, and assess how important each predictor is for the model:
+
+### Random forest-based classifier:
+```{r random_forest}
+rf_model1 <- randomForest::randomForest(has_RD_exp ~., data = train_data, ntree = 5000) #build model using 5000 trees
+
+#calculate accuracy with testing set:
+pred <- predict(rf_model1, newdata = test_data[,!(names(test_data) == "has_RD_exp")]) #use model to predict labels
+cm <- table(test_data$has_RD_exp, pred) #confusion matrix using true outcome vs predicted outcome
+rf_model1_acc <- sum(diag(cm)) / (sum(cm)) * 100 #the cases predicted correctly, divided by total cases
+```
+
+
+```{r random_forest_varimp, echo=FALSE, fig.width=12, fig.height=8}
+#Estimate variable importance:
+df_varimp <- caret::varImp(rf_model1)
+df_varimp$Variable <- factor(row.names(df_varimp), levels = row.names(df_varimp)[order(df_varimp$Overall)])
+
+#Plot:
+ggplot(df_varimp, aes(x=Variable, y=Overall)) +
+  geom_segment(aes(xend = Variable, yend = 0)) +
+  geom_point(size = 4, color = "orange") +
+  scale_y_continuous(limits = c(0,max(df_varimp$Overall) + 5), expand = c(0, 0)) +
+  coord_flip() +
+  theme_minimal()
+
+grid.rect(gp = gpar(lwd = 2, col = "grey50", fill = NA))
+```
+
+**Result**: The model accuracy is **`r round(rf_model1_acc, 2)`%**. Consistent with the exploratory analysis and past literature, the industry predictors are the most dominant. Interestingly, the amount of intangibles, revenue, assets, market capitalisation and patents are also important predictors of R&D.
+
+### Logistic regression-based classifier:
+``` {r logistic_reg}
+lr_model1 <- glm(has_RD_exp ~., data = train_data, family = "binomial") %>%
+  MASS::stepAIC(trace = FALSE) # performs stepwise variable selection
+
+#calculate accuracy with testing set:
+pred2 <- predict(lr_model1, newdata = test_data[,!(names(test_data) == "has_RD_exp")]) #use model to predict labels
+pred_classes2 <- ifelse(pred2 > 0.5, "yes", "no") #turn predictions from continuous [0,1] to dichotomous
+cm2 <- table(test_data$has_RD_exp, pred_classes2) #confusion matrix using true outcome vs predicted outcome
+lr_model1_acc <- sum(diag(cm2)) / (sum(cm2)) * 100 #the cases predicted correctly, divided by total cases
+
+```
+
+```{r logistic_reg_varimp, echo=FALSE, fig.width=12, fig.height=8}
+#Estimate variable importance:
+df_varimp <- caret::varImp(lr_model1)
+df_varimp$Variable <- factor(row.names(df_varimp), levels = row.names(df_varimp)[order(df_varimp$Overall)])
+
+#Plot:
+ggplot(df_varimp, aes(x=Variable, y=Overall)) +
+  geom_segment(aes(xend = Variable, yend = 0)) +
+  geom_point(size = 4, color = "orange") +
+  scale_y_continuous(limits = c(0,max(df_varimp$Overall) + 5), expand = c(0, 0)) +
+  coord_flip() +
+  theme_minimal()
+
+grid.rect(gp = gpar(lwd = 2, col = "grey50", fill = NA))
+```
+
+**Result**: The model accuracy is **`r round(lr_model1_acc, 2)`%**. Similar to the random forest classifier, the industry variables are the most dominant predictors of R&D undertaking. The number of patents and revenue are also important predictors (similar to random forest). Interestingly, the number of geographic segments, the age and number of strategic alliances emerge as important predictors in this model.
+
+### Naive Bayes-based classifier:
+```{r naive_bayes}
+nb_model1 <- caret::train(x = as.data.frame(train_data[,!(names(train_data) == "has_RD_exp")]),
+                          y = train_data$has_RD_exp,
+                          method = "naive_bayes",
+                          preProcess=c("scale","center"),
+                          trControl = trainControl(method = 'cv', number = 10))
+
+#calculate accuracy with testing set:
+pred3 <- predict(nb_model1, newdata = test_data[,!(names(test_data) == "has_RD_exp")]) #predict labels in test set using model built
+cm3 <- table(test_data$has_RD_exp, pred3) #confusion matrix using true outcome vs predicted outcome
+nb_model1_acc <- sum(diag(cm3)) / (sum(cm3)) * 100 #the cases predicted correctly, divided by total cases
+```
+
+```{r naive_bayes_varimp, echo=FALSE, fig.width=12, fig.height=8}
+#Estimate variable importance:
+df_varimp <- caret::varImp(nb_model1)
+df_varimp <- as.data.frame(df_varimp$importance)
+colnames(df_varimp)[1] <- "Overall"
+df_varimp$Variable <- factor(row.names(df_varimp), levels = row.names(df_varimp)[order(df_varimp$Overall)])
+df_varimp <- df_varimp[,c(3,1)]
+
+#Plot:
+ggplot(df_varimp, aes(x=Variable, y=Overall)) +
+  geom_segment(aes(xend = Variable, yend = 0)) +
+  geom_point(size = 4, color = "orange") +
+  scale_y_continuous(limits = c(0,max(df_varimp$Overall) + 5), expand = c(0, 0)) +
+  coord_flip() +
+  theme_minimal()
+
+grid.rect(gp = gpar(lwd = 2, col = "grey50", fill = NA))
+```
+
+**Result**: The model accuracy is **`r round(nb_model1_acc, 2)`%**. The most interesting insight about this classifier is that the industry is not the most dominant factor, but rather the intangible and number of patents. Revenue, trademarks and number of customers are close seconds.
+
+## 5. Model comparison:
+When comparing the accuracy of each model, the random forest classifier emerge as the highest performer. However, the performance of the logistic regression classifier was very close.
+Let's look at the ROC (receiver operating characteristic) curve and corresponding AUC (area under the curve) of each classifier to assess performance further: 
+
+```{r comparison, echo=FALSE, fig.width=12, fig.height=8}
+palette <- brewer.pal(n = 5, name = "Set2")
+pred_rf1 <- predict(rf_model1, newdata = test_data[,!(names(test_data) == "has_RD_exp")], type = "prob") #predict labels in test data using model built
+pred_ROC <- ROCR::prediction(pred_rf1[,2], test_data$has_RD_exp)
+perf_ROC <- ROCR::performance(pred_ROC, "tpr", "fpr")
+auc_rf1 <- ROCR::performance(pred_ROC, measure = "auc")
+auc_rf1 <- round(auc_rf1@y.values[[1]], 2)
+plot(perf_ROC, col = palette[1], lwd = 2, main = "ROC curves of classifiers", xaxs = "i", yaxs = "i")
+
+pred_lr1 <- predict(lr_model1, newdata = test_data[,!(names(test_data) == "has_RD_exp")], type = "response") #predict labels in test data using model built
+pred_ROC_2 <- ROCR::prediction(pred_lr1, test_data$has_RD_exp)
+perf_ROC_2 <- ROCR::performance(pred_ROC_2, "tpr", "fpr")
+auc_lr1 <- ROCR::performance(pred_ROC_2, measure = "auc")
+auc_lr1 <- round(auc_lr1@y.values[[1]], 2)
+plot(perf_ROC_2, col = palette[2], lwd = 2, add = T, xaxs = "i", yaxs = "i")
+
+pred_nb1 <- predict(nb_model1, newdata = test_data[,!(names(test_data) == "has_RD_exp")], type = "prob") #predict labels in test data using model built
+pred_ROC_3 <- ROCR::prediction(pred_nb1[,2], test_data$has_RD_exp)
+perf_ROC_3 <- ROCR::performance(pred_ROC_3, "tpr", "fpr")
+auc_nb1 <- ROCR::performance(pred_ROC_3, measure = "auc")
+auc_nb1 <- round(auc_nb1@y.values[[1]], 2)
+plot(perf_ROC_3, col = palette[3], lwd = 2, add = T, xaxs = "i", yaxs = "i")
+
+abline(a=0, b= 1, col = "grey75", lwd = 2)
+legend(0.4, 0.3, c(paste0("Random forest", " | AUC: ", auc_rf1), 
+                   paste0("Logistic regression", " | AUC: ", auc_lr1),
+                   paste0("Naive Bayes", " | AUC: ", auc_nb1)
+                   ), palette[1:3], border = "white", 
+       bty = "n", text.col = "grey30", x.intersp = .1)
+box(col = "grey60", lwd = 1)
+```
+
+## 6. Discussion:
+
+From the curve, it becomes clear the superiority of both the random forest and logistic regression classifiers compared to the naive Bayes classifier. **The random forest classifier has a greater AUC**, and it can be seen that it **performs better than the logistic regression classifier** in the middle section of the curves (where the false positive rates are between 0.1 and 0.6).
+
+Considering the superiority of the random forest classifier, we go back to its most important predictors in order to establish a definitive answer to our research question. Unarguably, **the industry in which the company operates is a dominant feature driving R&D undertaking**. This insight suggest that Australia's R&D intensity is a reflection of the industry structure underpinning the economy. In fact, if we go back to the exploratory analysis, we see that Materials, Energy and Diversified Financials industries (the three most populous industries in Australia) show comparatively low counts of companies with R&D.
+
+When we consider the top 10 predictors (excluding GICS industry group and sector), interesting insights emerge too. **The amount of intangible assets, total revenue and total assets all play a role in predicting R&D undertaking**. The curves from the exploratory analysis indicate a group of companies heavy in assets (inc. intangibles) and revenues that do not undertake R&D. This can be interpreted in three ways: they outsource innovation activities to other organisations, undertake other forms of innovation, or do not innovate. More research covering non-R&D innovation activities might be needed to better understand this situation.
+
+Next, we have market capitalisation and number of patents. **Companies with more patents and greater market capitalisation are more likely to undertake R&D**. This aligns with the majority of academic research arguing that R&D outputs are typically protected through patents, and that the market values R&D intensity (as well as patents). However, this might be due the lack of reliable metrics for non-R&D innovation, which forces the market to rely on R&D and patents.
+
+The remaining three features in the top 10 predictors are ** headquarter state, number of employees and year founded**. The difference in the headquarter state may be attributable to the uneven location of businesses depending on the industry (i.e. mining and resource industries are more likely to be located in some states than others). With number of employees, we can see a large number of companies with 0-1 employees not undertaking R&D. These are likely to be junior mining companies, which have a greater focus on exploration and new discoveries than on R&D. Lastly, there is a group of relatively young companies that are less likely to undertake R&D, suggesting that these are companies that are still focusing on developing product/service lines and business processes, before committing to further R&D expenditures.
+
+There are also important insights regarding the features in the bottom of the importance ranking. The company and trading status of the companies in my sample, as well as features such as number of products, segments, competitors and number of alliances are less likely to play a role in R&D undertaking.
+
+
+## 7. Conclusions:
+
+This study shows that **whether or not a company undertakes R&D can be predicted using a battery of company structural and performance features**. In regards to the factors driving R&D undertaking in Australia, a random forest-based classification model indicate that **the industry in which the company operates is the most dominant factor influencing R&D**. The amount of **assets, revenues, market capitalisation and number of patents play a secondary, although a noticeable, role as well**.
+
+
