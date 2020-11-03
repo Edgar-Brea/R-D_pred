@@ -6,8 +6,7 @@ date: "20/10/2020"
 
 #Knit to html into the file 'docs/index.html':
 knit: (function(input_file, encoding) {
-  out_dir <- 'docs';
-  rmarkdown::render(input_file, encoding = encoding, output_file = file.path(dirname(input_file), out_dir, 'index.html'))
+  rmarkdown::render(input_file, encoding = encoding, output_file = file.path(dirname(input_file), 'index.html'))
   })
 ---
 <style type="text/css">
